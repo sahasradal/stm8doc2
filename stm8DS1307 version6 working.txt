@@ -1,0 +1,831 @@
+stm8/
+
+	#include "mapping.inc"
+	#include "stm8s103f.inc"
+
+	
+pointer MACRO first
+	ldw X,first
+	MEND
+	
+	
+	  segment byte at 100 'ram1'
+buffer1  ds.b
+buffer2  ds.b
+buffer3  ds.b
+nibble1  ds.b
+temp	 ds.b
+pad1     ds.b	
+posx	 ds.b
+posy     ds.b
+array_label ds.b
+read_data_len ds.b
+HOUR1stdigit  ds.b
+HOUR2nddigit  ds.b
+COLON1	      ds.b
+MINUTES1stdigit ds.b
+MINUTES2nddigit ds.b
+COLON2        ds.b
+SECOND1stdigit ds.b 
+SECOND2nddigit ds.b
+BLANK		ds.b
+DATE1stdigit   ds.b
+DATE2nddigit  ds.b
+SLASH1     ds.b
+MONTH1stdigit   ds.b
+MONTH2nddigit ds.b
+SLASH2		ds.b
+YEAR1stdigit  ds.b
+YEAR2nddigit  ds.b
+SLASH3  ds.b
+DAY1  ds.b
+DAY2  ds.b
+PERIOD  ds.b
+hourbcd  ds.b
+minbcd  ds.b
+datebcd  ds.b
+monbcd  ds.b
+yearbcd  ds.b
+weekbcd  ds.b	
+buf7 ds.b 8	;reserves 8 bytes in ram
+data_length ds.b
+
+	
+	segment 'rom'
+main.l
+	; initialize SP
+	ldw X,#stack_end
+	ldw SP,X
+
+	#ifdef RAM0	
+	; clear RAM0
+ram0_start.b EQU $ram0_segment_start
+ram0_end.b EQU $ram0_segment_end
+	ldw X,#ram0_start
+clear_ram0.l
+	clr (X)
+	incw X
+	cpw X,#ram0_end	
+	jrule clear_ram0
+	#endif
+
+	#ifdef RAM1
+	; clear RAM1
+ram1_start.w EQU $ram1_segment_start
+ram1_end.w EQU $ram1_segment_end	
+	ldw X,#ram1_start
+clear_ram1.l
+	clr (X)
+	incw X
+	cpw X,#ram1_end	
+	jrule clear_ram1
+	#endif
+
+	; clear stack
+stack_start.w EQU $stack_segment_start
+stack_end.w EQU $stack_segment_end
+	ldw X,#stack_start
+clear_stack.l
+	clr (X)
+	incw X
+	cpw X,#stack_end	
+	jrule clear_stack
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+infinite_loop.l
+
+write_address.b equ $4e
+DS1307_write_address.b equ $D0
+data_command1.b equ $09			;0b00001001
+data_command2.b equ $0D			;0b00001101
+data_command3.b equ $09			;0b00001001		;
+inst_command1.b equ $08			;0b00001000		;
+inst_command2.b equ $0C			;0b00001100		;
+inst_command3.b equ $08			;0b00001000		;
+day dc.B "00MOTUWETHFRSASU"
+string  dc.B "Hello world!\0"
+
+
+  
+  
+ 
+	mov CLK_CKDIVR,#$00	; cpu clock no divisor = 16mhz
+	clr I2C_CR1		; write PE=0 incase it is a re init
+	mov I2C_FREQR,#$10	; set i2c clock input frequency to 16mhz
+	mov I2C_CCRH,#$00	; I2C period = 2 * CCR * tMASTER 100KHz : tabe 50 RM0016 P 315
+	mov I2C_CCRL,#$50	; cpu 16mhz ,for 100Khz CCR=0x50 as per table ,FS bit 0 for std
+	mov I2C_OARH,#$40	; ADD_CONF bit #6 should be always written as 1 as per data sheet
+	mov I2C_TRISER,#17	; for 16 MHz : (1000 ns / 62.5 ns = 16 ) + 1 = 17
+	mov I2C_CR1,#$1		; enable I2C peripheral
+
+
+	mov buffer2,#write_address	
+	call startn_address_write
+	call lcd_init
+	call hello
+	mov buffer1,#250
+	call delay
+	call delay
+	call delay
+	call delay
+	call clear_display
+	mov posy,#1
+	mov posx,#4
+	call posi
+	;ldw X,#string
+	pointer #string
+	call array_loop
+	call stop
+	call clockwrite
+read_time
+	mov data_length,#7
+	call info_read
+	call BCD_TO_ASCII
+	mov buffer2,#write_address	
+	call startn_address_write
+	call clear_display
+	mov posy,#0
+	mov posx,#0
+	call posi
+	mov buffer2,HOUR1stdigit
+	call nibble_write_data
+	mov buffer2,HOUR2nddigit
+	call nibble_write_data
+	mov buffer2,COLON1
+	call nibble_write_data
+	mov buffer2,MINUTES1stdigit
+	call nibble_write_data
+	mov buffer2,MINUTES2nddigit
+	call nibble_write_data
+	mov buffer2,COLON2
+	call nibble_write_data
+	mov buffer2,SECOND1stdigit
+	call nibble_write_data
+	mov buffer2,SECOND2nddigit
+	call nibble_write_data
+	mov buffer2,BLANK
+	call nibble_write_data
+	mov posy,#1
+	mov posx,#0
+	call posi
+	mov buffer2,DATE1stdigit
+	call nibble_write_data
+	mov buffer2,DATE2nddigit
+	call nibble_write_data
+	mov buffer2,SLASH1
+	call nibble_write_data
+	mov buffer2,MONTH1stdigit
+	call nibble_write_data
+	mov buffer2,MONTH2nddigit
+	call nibble_write_data
+	mov buffer2,SLASH2
+	call nibble_write_data
+	mov buffer2,YEAR1stdigit
+	call nibble_write_data
+	mov buffer2,YEAR2nddigit
+	call nibble_write_data
+	mov buffer2,SLASH3
+	call nibble_write_data
+	mov buffer2,DAY1
+	call nibble_write_data
+	mov buffer2,DAY2
+	call nibble_write_data
+	mov buffer2,PERIOD
+	call nibble_write_data
+	call stop
+	mov buffer1,#250
+	call delay
+
+
+	jp read_time
+	
+
+
+
+	
+startn_address_write				;  Send Address
+    bset I2C_CR2,#2         		; set ACK bit
+    bset I2C_CR2,#0         		; set SB START
+wait_start_tx:              			; wait SB in I2C_SR1
+    btjf I2C_SR1, #0, wait_start_tx		; If bit 0 of I2C_SR1 = 0 jump to label
+	ld a,I2C_SR1            		; Clear SB bit
+	ld a, buffer2				; LCD write address 0x4E in buffer2	
+	ld I2C_DR,a				; copy A to I2C data register,I2C address
+wait_adr_tx:		    			; this waits for address transmission
+	btjf I2C_SR1,#1, wait_adr_tx		; If bit 1 of I2C_SR1 = 0 jump to label, if 1 continue
+	ld a,I2C_SR1            		; clear ADDR bit  (reading SR1 and then SR3 clears ADDR flag)  
+	ld a,I2C_SR3            		; clear ADDR bit  (reading SR1 and then SR3 clears ADDR flag)
+	nop
+  	ret
+	
+	
+	
+write_data
+	ld a,buffer2			; copy data to be transmitted from buffer2
+	ld I2C_DR,a				; write data from buffer to I2C hardware data register 
+wait_zero_tx:               			; wait for TXE bit to set(1),TXE=1 means data register empty    
+	btjf I2C_SR1,#7, wait_zero_tx
+	ret
+	
+	
+stop	
+	bset I2C_CR2,#1         ; STOP
+	bres I2C_CR2,#7         ; set SWRST
+	ret	
+	
+	
+	
+;***********************************************************************************************************************************************************	
+;Hitachi 1602 LCD routines	
+;
+;***********************************************************************************************************************************************************
+
+
+nibble_write_instruction
+	mov pad1,buffer2	 ; data to be transmitted is in buffer2 copied to pad1
+	ld A,pad1		 ; padi is temp storage as nibble is changed during operation
+	AND A,#$F0               ; upper nibble is preserved in register nibble1
+	OR A,#inst_command1
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1             	 ;copies data again for upper nibble operation with inst-command2
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#inst_command2
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1                ;copies data for upper nibble operation with inst_command3
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#inst_command3
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1
+	swap A                   ;previous lower nibble is swapped to high nibble position
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#inst_command1
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1           	 ;copies data for upper nibble operation
+	swap A                   ;previous lower nibble is swapped to high nibble position
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#inst_command2
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1             	 ;copies data for upper nibble operation
+	swap A                   ;previous lower nibble is swapped to high nibble position
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#inst_command3
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ret
+
+
+
+
+nibble_write_data
+	mov pad1,buffer2	 ; data to be transmitted is in buffer2 copied to pad1
+	ld A,pad1		 ;padi is temp storage as nibble is changed during operation
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#data_command1
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1             	 ;copies data again for upper nibble operation with inst-command2
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#data_command2
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1             	 ;copies data for upper nibble operation with inst_command3
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#data_command3
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1
+	swap A                   ;previous lower nibble is swapped to high nibble position
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#data_command1
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1          	 ;copies data for upper nibble operation
+	swap A                   ;previous lower nibble is swapped to high nibble position
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#data_command2
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ld A,pad1             	 ;copies data for upper nibble operation
+	swap A                   ;previous lower nibble is swapped to high nibble position
+	AND A,#$F0               ;upper nibble is preserved in register nibble1
+	OR A,#data_command3
+	ld buffer2,A
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	
+	ret
+
+
+
+
+lcd_init
+	mov buffer1,#50
+	call delay      	;50ms delay as part of startup
+	
+	
+	mov buffer2,#$3C   	;Function set LCD , high nibble 0011 & lower commands led = 1,EN,RW,RS all 0.
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	mov buffer2,#$38   	;function set LCD ,high nibble 0011 & lower commands 1100 (led,en,rw,rs)
+    call write_data
+	mov buffer1,#50
+	call delay      	;50ms delay as part of startup
+    
+	
+	
+	
+	mov buffer2,#$3C         ;Function set LCD , high nibble 0011 & lower commands led = 1,EN,RW,RS all 0.
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	mov buffer2,#$38         ;function set LCD ,high nibble 0011 & lower commands 1100 (led,en,rw,rs)
+    call write_data
+	mov buffer1,#50
+	call delay      	 ;50ms delay as part of startup
+
+	
+	
+	
+	
+	mov buffer2,#$3C         ;Function set LCD , high nibble 0011 & lower commands led = 1,EN,RW,RS all 0.
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	mov buffer2,#$38         ;function set LCD ,high nibble 0011 & lower commands 1100 (led,en,rw,rs)
+    call write_data
+	mov buffer1,#50
+	call delay      	 ;50ms delay as part of startup
+    
+	
+    
+	
+	
+	mov buffer2,#$2C         ;I2C slave address AQM0802 display  http://akizukidenshi.com/download/ds/xiamen/AQM0802.pdf
+	call write_data
+	mov buffer1,#20
+	call usdelay
+	mov buffer2,#$28         ;Function set LCD , high nibble 0010 & lower commands led,EN,RW,RS all 0.
+	call write_data
+	mov buffer1,#50
+	call delay      	 ;50ms delay as part of startup
+    
+	
+ 
+    
+	
+	
+	
+	mov buffer2,#$28	 ;0b00101000 (0x28 4 bit ,2 line ,5x7)Function set LCD ,
+	call nibble_write_instruction 
+	mov buffer1,#5
+	call delay                ;5ms delay			
+	
+
+	
+	
+	
+	mov buffer2,#$0C          ;0b00001000 (0x08 display off)Function set LCD , 
+	call nibble_write_instruction
+	mov buffer1,#5
+	call delay        	  ;5ms delay	
+	
+	
+	
+	
+	
+	mov buffer2,#$06          ;0b00000001 Function set LCD  (clear display 0x01),  CLEAR DISPLAY
+	call nibble_write_instruction
+	mov buffer1,#5
+	call delay        	  ;5ms delay
+	
+	
+
+	
+	mov buffer2,#$01         ;0b00000001 Function set LCD  (clear display 0x01),  CLEAR DISPLAY
+	call nibble_write_instruction
+	mov buffer1,#5
+	call delay        	 ;5ms delay
+	ret
+	
+		
+	
+	
+hello	
+	mov buffer2,#'H'	;0b010010000         ;data write to LCD , H of hello (0100-1000)
+	call nibble_write_data
+	mov buffer1,#5
+	call delay         	;5ms delay
+	
+	mov buffer2,#'E'	;0b01100101         ;data write to LCD , E of hello (0110-0101)
+	call nibble_write_data
+	mov buffer1,#5
+	call delay            	;5ms delay
+
+
+	mov buffer2,#'L'	;0b01101100         ;data write to LCD , L of hello (0110-1100)
+	call nibble_write_data
+	mov buffer1,#5
+	call delay         	;5ms delay
+	
+	
+	mov buffer2,#'L'	;0b01101100         ;data write to LCD , L of hello (0110-1100)
+	call nibble_write_data
+	mov buffer1,#5
+	call delay         	;5ms delay
+	
+	
+	mov buffer2,#'O'        ;0b01101111         ;data write to LCD , O of hello (0110-1111)
+	call nibble_write_data
+	mov buffer1,#5
+	call delay        	;5ms delay
+	ret
+
+
+clear_display
+	mov buffer2,#$01              ;0b00000001 Function set LCD  (clear display 0x01),  CLEAR DISPLAY
+	call nibble_write_instruction
+	mov buffer1,#5
+	call delay        	      ;	,50us delay
+	ret
+
+
+								  
+
+delay 
+     ld a , buffer1
+load_ms	 
+     ldw y , #$C80                ; 0x61a80 = 400000 ie (2 * 10 ^ 6 MHz) / 5cycles 
+loopd 
+     subw y , #01                 ; decrement with set carry 
+     jrne loopd
+	 dec a
+	 jrne load_ms
+	 
+    ret 
+
+
+usdelay
+	dec buffer1
+	jrne usdelay
+	ret
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+
+posi								; arguments in memory posx & posy
+		ld a,posy					; copy posx into a
+		cp a,#$00					; check the first parameter is 0 or a higher number
+		jreq line1					; if zero go to label first line
+		ld a,posx					; after line check copy posy into a for Y coordinate
+		add a,#$c0					; if not zero the input is for 2nd line.add 0xC0 with posy DDRAM position
+		ld buffer2,a					; copy new LCD DDRAM address to buffer2
+		call nibble_write_instruction			; call nibble write subroutine to write to LCD backpack
+		ret
+line1
+		ld a,posx					; copy posx into a
+		add a,#$80					; add 0x80 to X position  in a to get the start postion on 1st line
+		ld buffer2,a					; copy new LCD DDRAM address to buffer2 which is our data entry point
+		call nibble_write_instruction			; call TWI transmit command for LCD commands
+		ret
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;array:
+		;ldw x,array_label					; load from program memory to r17 data pointed by Z pointer
+array_loop		
+		ld a,(x)					; load a with data from memory pointed by X
+		cp a,#$00						; check for null terminator in the string
+		jreq exit
+		ld buffer2,a					; if zero go to exit
+		call nibble_write_data				; transmit copied data to LCD via TWI
+		addw x,#1					; increment x value to next byte
+		jra array_loop					; jump back to array until null
+exit 	
+		ret
+		
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+		
+
+info_read					; function to read time registers to buffer
+	ldw X,#buf7					; setting pointer to buffer
+	mov buffer2,#DS1307_write_address; DS1307 write address
+	call startn_address_write	; issues start and sends write address
+	mov buffer2,#$00     		; DS1307 has its time register addresses starting from 0x00
+	call write_data			; function used to transmit above data
+	call i2c_read			; function to read DS1307 registers
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+BCD_TO_ASCII			; routine to convert BCD to ASCII and store in appropriate registers
+	ldw X,#buf7			; pointer to the start address of buffer
+	ld a,(x)
+	ld pad1,a			; copy seconds data to SRAM address PAD1 for temprerory storage while processing
+	swap a				; 
+	and a,#$3f			; AND with 0b00111111 and only swapped seconds data remains ,tenth position is in lower nibble and unit position in higher nibble
+	or a,#$30			; OR with ascii for 0 which is 0x30 (0b00110000) , higher nibble is invalidated and only lower nibble which is 10th seconds gets converted to ascii
+	ld SECOND1stdigit,a		; store the 10th seconds ascii digit in SRAM location SECOND1stdigit			
+	ld a,pad1			; copy previously stored seconds data from PAD1
+	and a,#$3f			; AND with 0b00111111 and seconds data remains with higher nibble as 10th place and lower nibble as unit place
+	or a,#$30			; OR the above value with ASCII0 (0b00110000) 0x30, upper nibble becomes 0x3 and lower nibble will remain as it is, which is unit part of seconds data
+	ld SECOND2nddigit,a		; copy his ASCII unit seconds value to SECOND2nddigit in SRAM
+	ld a,#' '			; load ascii blank   in r16
+	ld BLANK,a			; store colon in SRAM location BLANK which will be used to print on LCD after the seconds digits
+
+	addw x,#1
+	ld a,(X)
+	ld pad1,a			; copy minutes data to SRAM address PAD1 for temprerory storage while processing
+	swap a				; 
+	and a,#$3f			; AND with 0b00111111 and only swapped minutes data remains ,tenth position is in lower nibble and unit position in higher nibble
+	or a,#$30			; OR with ascii for 0 which is 0x30 (0b00110000) , higher nibble is invalidated and only lower nibble which is 10th minutes gets converted to ascii
+	ld MINUTES1stdigit,a		; store the 10th minutes ascii digit in SRAM location MINUTES1stdigit			
+	ld a,pad1			; copy previously stored minutes data from PAD1
+	and a,#$3f			; AND with 0b00111111 and minutes data remains with higher nibble as 10th place and lower nibble as unit place
+	or a,#$30			; OR the above value with ASCII0 (0b00110000) 0x30, upper nibble becomes 0x3 and lower nibble will remain as it is, which is unit part of minutes data
+	ld MINUTES2nddigit,a		; copy his ASCII unit minutes value to MINUTES2nddigit in SRAM
+	ld a,#':'			; load ascii :  (colon) in r16
+	ld COLON2,a			; store colon in SRAM location COLON1 which will be used to print on LCD after the minutes digits
+
+
+	addw x,#1
+	ld a,(X)
+	ld pad1,a			; copy hour data to SRAM address PAD1 for temprerory storage while processing
+	swap a				; 
+	and a,#$3f			; AND with 0b00111111 and only swapped hour data remains ,tenth position is in lower nibble and unit position in higher nibble
+	or a,#$30			; OR with ascii for 0 which is 0x30 (0b00110000) , higher nibble is invalidated and only lower nibble which is 10th hour gets converted to ascii
+	ld HOUR1stdigit,a		; store the 10th hour ascii digit in SRAM location HOUR1stdigit			
+	ld a,pad1			; copy previously stored hour data from PAD1
+	and a,#$3f			; AND with 0b00111111 and hour data remains with higher nibble as 10th place and lower nibble as unit place
+	or a,#$30			; OR the above value with ASCII0 (0b00110000) 0x30, upper nibble becomes 0x3 and lower nibble will remain as it is, which is unit part of hour data
+	ld HOUR2nddigit,a		; copy his ASCII unit hour value to HOUR2nddigit in SRAM
+	ld a,#':'			; load ascii :  (colon) in r16
+	ld COLON1,a			; store colon in SRAM location COLON1 which will be used to print on LCD after the hour digits
+
+
+
+	addw x,#1			; increase pointer x by 1 byte
+	ld a,(x)			; copy data pointed by x to a
+	and a,#$07			; AND with 0b00000111 so that only lower 3 bits remain , 1 monday to 7 sunday
+	ld temp,a			; copy ANDed value to SRAM location temp for addtion
+	add a,temp			; add temp to a ,add works between a and mem or immediate only
+	exg a,temp			; exchange so that result will end up in temp
+	ldw y,#day			; initiate y pointer to address DAY which holds the alphabetical representation of week days 1-7
+	addw y,temp			; add temp data to Y (day 1-7)to determine the address of the day character address value
+	ld a,(y)			; load  ASCII value of first letter that indicates the day stored in the new address after above calculation
+	ld DAY1,a			; store in SRAM address DAy1 the first alphabet to be dispalyed in LCD
+	addw y,#1			; increase y pointer
+	ld a,(y)			; y incremented earlier now points to next address of the 2nd alphaber of the week day (MO,Tu,WE,TH,FR,SA,SU)
+	ld DAY2,a			; store in SRAM address DAY2 the 2nd alphabet to be displayed on the lcd
+	ld a,#'.'			; load ascii period in r16 to be displayed after day
+	ld PERIOD,a 			; store the ascii period in SRAM adress PERIOD
+
+
+	addw x,#1
+	ld a,(X)
+	ld pad1,a			; copy date data to SRAM address PAD1 for temprerory storage while processing
+	swap a				; 
+	and a,#$3f			; AND with 0b00111111 and only swapped date data remains ,tenth position is in lower nibble and unit position in higher nibble
+	or a,#$30			; OR with ascii for 0 which is 0x30 (0b00110000) , higher nibble is invalidated and only lower nibble which is 10th date gets converted to ascii
+	ld DATE1stdigit,a		; store the 10th date ascii digit in SRAM location DATE1stdigit			
+	ld a,pad1			; copy previously stored date data from PAD1
+	and a,#$3f			; AND with 0b00111111 and date data remains with higher nibble as 10th place and lower nibble as unit place
+	or a,#$30			; OR the above value with ASCII0 (0b00110000) 0x30, upper nibble becomes 0x3 and lower nibble will remain as it is, which is unit part of date data
+	ld DATE2nddigit,a		; copy this ASCII unit date value to DATE2nddigit in SRAM
+	ld a,#'/'			; load ascii /   in r16
+	ld SLASH1,a			; store / in SRAM location BLANK which will be used to print on LCD after the date digits
+
+
+
+	addw x,#1
+	ld a,(X)
+	ld pad1,a			; copy month data to SRAM address PAD1 for temprerory storage while processing
+	swap a				; 
+	and a,#$3f			; AND with 0b00111111 and only swapped month data remains ,tenth position is in lower nibble and unit position in higher nibble
+	or a,#$30			; OR with ascii for 0 which is 0x30 (0b00110000) , higher nibble is invalidated and only lower nibble which is 10th month gets converted to ascii
+	ld MONTH1stdigit,a		; store the 10th month ascii digit in SRAM location MONTH1stdigit			
+	ld a,pad1			; copy previously stored month data from PAD1
+	and a,#$3f			; AND with 0b00111111 and month data remains with higher nibble as 10th place and lower nibble as unit place
+	or a,#$30			; OR the above value with ASCII0 (0b00110000) 0x30, upper nibble becomes 0x3 and lower nibble will remain as it is, which is unit part of month data
+	ld MONTH2nddigit,a		; copy this ASCII unit date value to MONTH2nddigit in SRAM
+	ld a,#'/'			; load ascii /   in r16
+	ld SLASH2,a			; store / in SRAM location BLANK which will be used to print on LCD after the month digits
+
+
+
+	addw x,#1
+	ld a,(X)
+	ld pad1,a			; copy year data to SRAM address PAD1 for temprerory storage while processing
+	swap a				; 
+	and a,#$3f			; AND with 0b00111111 and only swapped year data remains ,tenth position is in lower nibble and unit position in higher nibble
+	or a,#$30			; OR with ascii for 0 which is 0x30 (0b00110000) , higher nibble is invalidated and only lower nibble which is 10th year gets converted to ascii
+	ld YEAR1stdigit,a		; store the 10th year ascii digit in SRAM location YEAR1stdigit			
+	ld a,pad1			; copy previously stored year data from PAD1
+	and a,#$3f			; AND with 0b00111111 and year data remains with higher nibble as 10th place and lower nibble as unit place
+	or a,#$30			; OR the above value with ASCII0 (0b00110000) 0x30, upper nibble becomes 0x3 and lower nibble will remain as it is, which is unit part of year data
+	ld YEAR2nddigit,a		; copy this ASCII unit date value to YEAR2nddigit in SRAM
+	ld a,#' '			; load ascii ' '   in r16
+	ld SLASH3,a			; store  ' ' in SRAM location BLANK which will be used to print on LCD after the year digits
+
+	ret
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+inforead:			; function to read time registers to buffer
+	ldw X,#buf7			; setting pointer to buffer
+	mov buffer2,#DS1307_write_address; DS1307 write address
+	call startn_address_write	; issues start and sends write address
+	mov buffer2,#$00     		; DS1307 has its time register addresses starting from 0x00
+	call write_data			; function used to transmit above data
+	call i2c_read			; function to read DS1307 registers
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+clockwrite:					; routine to copy adjusted time from SRAM to DS1307
+	mov buffer2,#DS1307_write_address
+	call startn_address_write
+	mov buffer2,#$00     			; DS1307 has its time register addresses staring from 0x00
+	call write_data
+	mov buffer2,#$80			; bit 7 is CH bit if written 1 clock is stopped. if clock not stopped before write doesnt update
+	call write_data
+	call stop
+	mov buffer2,#DS1307_write_address
+	call startn_address_write
+	mov buffer2,#$00     			; DS1307 has its time register addresses staring from 0x00 auto incremented
+	call write_data
+	mov buffer2,#$00			; 00 seconds to senconds register
+	call write_data
+	mov buffer2,minbcd			; write saved minutes
+	call write_data	
+	mov buffer2,hourbcd			; write saved hours
+	call write_data		
+	mov buffer2,weekbcd			; write from saved day of week 
+	call write_data
+	mov buffer2,datebcd			; write to date register  
+	call write_data
+	mov buffer2,monbcd			; write to month register
+	call write_data
+	mov buffer2,yearbcd			; write to year register 
+	call write_data
+	call stop
+	ret					; jump to main routine as time adjustment has finished
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+i2c_read	
+;--------------------------------------------------
+    
+	bset I2C_CR2,#2         	; set ACK bit
+    
+	bset I2C_CR2,#0         	; START
+
+wait_start_rx:              		; wait SB in I2C_SR1
+    
+	btjf I2C_SR1, #0, wait_start_rx
+    
+	ld a,I2C_SR1            	; Clear SB bit
+ 	
+	ld a,#DS1307_write_address	; LCD address with write=0x68<<0=0xD0	
+	inc a				; increase 1 to write address makes it read address, D0+1=D1 or 0x68 << 1 
+	ld  I2C_DR, a      		; DS1307 address RAED Mode
+	
+	ldw X,#buf7			; setting pointer to buffer
+
+w0:
+    
+	btjf I2C_SR1,#1, w0		; wait till ADDR bit in SR1 is set indicating address tx success
+    bset I2C_CR2,#2         	; send ACK
+    
+	ld a,I2C_SR1            	; clear ADDR bit
+    
+	ld a,I2C_SR3            	; clear ADDR bit
+	
+	ld a,data_length
+	cp a,#1
+	jreq single_setup			; if data length is 1 jump to single setup for one byte reception
+	clr buffer3					; clear buffer3 in SRAM to use as data byte counter
+i2c_multi_read
+	btjf I2C_SR1,#6,i2c_multi_read	; wait till bit6 (RXNE)of I2C_SR1 is set
+	ld a,I2C_DR					; copy/read data from I2C_DR register to a
+	ld (x),a					; store value in a to adress pointed by X
+	incw x						; increase address pointer which will increase buf7 address
+	inc buffer3					; buffer 3 is used as counter ,increase 1 count
+	ld a,data_length			; load data length to be read ie 7(7 registers of DS130)
+	sub a,#1					; subtract 1 from seven to find the 2nd last byte
+	cp a,buffer3				; compare buffer3 value icremented each time to 6 = datalength - 1
+	jrne i2c_multi_read			; if not yet datalength -1 loop to receive again
+
+single_setup
+	bres I2C_CR2,#2         	; NACK loaded 
+	bset I2C_CR2,#1         	; STOP loaded 
+last_byte
+	btjf I2C_SR1,#6,last_byte
+	ld a,I2C_DR
+	ld (x),a
+	bres I2C_CR2,#7			; set SWRST
+	ret
+
+	
+	
+	
+	
+	
+	
+	
+
+	interrupt NonHandledInterrupt
+NonHandledInterrupt.l
+	iret
+
+	segment 'vectit'
+	dc.l {$82000000+main}									; reset
+	dc.l {$82000000+NonHandledInterrupt}	; trap
+	dc.l {$82000000+NonHandledInterrupt}	; irq0
+	dc.l {$82000000+NonHandledInterrupt}	; irq1
+	dc.l {$82000000+NonHandledInterrupt}	; irq2
+	dc.l {$82000000+NonHandledInterrupt}	; irq3
+	dc.l {$82000000+NonHandledInterrupt}	; irq4
+	dc.l {$82000000+NonHandledInterrupt}	; irq5
+	dc.l {$82000000+NonHandledInterrupt}	; irq6
+	dc.l {$82000000+NonHandledInterrupt}	; irq7
+	dc.l {$82000000+NonHandledInterrupt}	; irq8
+	dc.l {$82000000+NonHandledInterrupt}	; irq9
+	dc.l {$82000000+NonHandledInterrupt}	; irq10
+	dc.l {$82000000+NonHandledInterrupt}	; irq11
+	dc.l {$82000000+NonHandledInterrupt}	; irq12
+	dc.l {$82000000+NonHandledInterrupt}	; irq13
+	dc.l {$82000000+NonHandledInterrupt}	; irq14
+	dc.l {$82000000+NonHandledInterrupt}	; irq15
+	dc.l {$82000000+NonHandledInterrupt}	; irq16
+	dc.l {$82000000+NonHandledInterrupt}	; irq17
+	dc.l {$82000000+NonHandledInterrupt}	; irq18
+	dc.l {$82000000+NonHandledInterrupt}	; irq19
+	dc.l {$82000000+NonHandledInterrupt}	; irq20
+	dc.l {$82000000+NonHandledInterrupt}	; irq21
+	dc.l {$82000000+NonHandledInterrupt}	; irq22
+	dc.l {$82000000+NonHandledInterrupt}	; irq23
+	dc.l {$82000000+NonHandledInterrupt}	; irq24
+	dc.l {$82000000+NonHandledInterrupt}	; irq25
+	dc.l {$82000000+NonHandledInterrupt}	; irq26
+	dc.l {$82000000+NonHandledInterrupt}	; irq27
+	dc.l {$82000000+NonHandledInterrupt}	; irq28
+	dc.l {$82000000+NonHandledInterrupt}	; irq29
+
+	end

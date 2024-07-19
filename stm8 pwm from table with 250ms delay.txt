@@ -1,0 +1,165 @@
+stm8/
+
+	#include "mapping.inc"
+	#include "stm8s103f.inc"
+	
+	segment byte at 100 'ram1'
+buffer1  ds.b
+buffer2  ds.b
+buffer3  ds.b
+nibble1  ds.b	
+pad1     ds.b	
+	
+	
+	segment 'rom'
+main.l
+	; initialize SP
+	ldw X,#stack_end
+	ldw SP,X
+
+	#ifdef RAM0	
+	; clear RAM0
+ram0_start.b EQU $ram0_segment_start
+ram0_end.b EQU $ram0_segment_end
+	ldw X,#ram0_start
+clear_ram0.l
+	clr (X)
+	incw X
+	cpw X,#ram0_end	
+	jrule clear_ram0
+	#endif
+
+	#ifdef RAM1
+	; clear RAM1
+ram1_start.w EQU $ram1_segment_start
+ram1_end.w EQU $ram1_segment_end	
+	ldw X,#ram1_start
+clear_ram1.l
+	clr (X)
+	incw X
+	cpw X,#ram1_end	
+	jrule clear_ram1
+	#endif
+
+	; clear stack
+stack_start.w EQU $stack_segment_start
+stack_end.w EQU $stack_segment_end
+	ldw X,#stack_start
+clear_stack.l
+	clr (X)
+	incw X
+	cpw X,#stack_end	
+	jrule clear_stack
+
+main_loop.l
+	
+	  mov CLK_CKDIVR,#$0     ; set max internal clock
+	  mov TIM2_PSCR,#$0      ; timer 3 prescaler div by 0
+	  mov TIM2_ARRH,#$7d     ; count to 1024 ,high byte must be loaded  first,
+	  mov TIM2_ARRL,#$00     ; frequency of signal becomes 16000000/1024=15625hz or 15.625khz
+	  mov TIM2_CCR2H,#$70    ; compare register set to 240, either turns off or on based on polarity bit 
+	  mov TIM2_CCR2L,#$80 	 ; duty cycle is either 76.56% or 23.43% bassed on poarity (240/1024)100
+	  bset TIM2_CCER1,#5  ; setting polarity bit of timer2 makes ch2 output 75%on,if 0 25%on  
+	   
+		
+    ; Set  channel as output (compare mode)
+    ; 0x30 = OC2Ref toggles when TIM3_CNT=TIM3_CCR1
+    ; 0x60 = PWM mode 1
+    ; 0x70 = PWM mode 2
+    ; 0x50 = Force active level OC2Ref forced low
+    ; 0x40 = Force active level OC2Ref forced low
+    ; 0x20 = Chan 2 inactive on level match
+    ; 0x10 = Chan 2 active on level match
+    ; 0x00 = Frozen
+	  mov TIM2_CCMR2,#$60 	; set to PWM mode 1
+	  bset TIM2_CCMR2,#3
+	  bset TIM2_CCER1,#4    ; enable chan 2 as output
+	  bset TIM2_CR1,#7
+	  bset TIM2_CR1,#0      ; set CEN bit to enable the timer
+	  
+setup
+	  bset PD_DDR,#5
+	  bset PD_ODR,#5
+	  mov TIM4_PSCR ,#$07	; select timer 4 prescaler to 128, 7 means 2^7=128
+	  mov TIM4_ARR,#124	; 16mhz/128=125000 =1s,125000/1000=125,load 125-1 as 0 is counted=124
+	  bset TIM4_IER,#0	; enable update interrupt in interrupt register
+	  bset TIM4_CR1,#0	; enable timer4
+	  rim					; enable interrupt globally	  
+
+
+
+here
+	
+	mov buffer2,#9
+	ldw X,#value
+	
+delay_loop
+	ld a,buffer1	; copy buffer 1 value to reg A
+	cp a,#250		; compare A to 250 ,has it reached 250ms??
+	jrne delay_loop	; if not wait in loop
+	bcpl PD_ODR,#5	
+loop
+	incw x
+	ld a,(x)
+	ld TIM2_CCR2H,a
+	incw X
+	ld a,(x)
+	ld TIM2_CCR2L,a
+	dec buffer2
+	jreq here
+	jp delay_loop
+	
+	
+value dc.b 	$00,$0C,$80,$19,$00,$25,$80,$32,$00,$3E,$80,$4B,$00,$57,$80
+value1 dc.b $64,$00,$70,$80
+
+
+
+	Interrupt timer4_ISR
+timer4_ISR
+	bres TIM4_SR,#0	; clear update interrupt flag
+	inc buffer1		; increase buffer1 by 1 count every 1ms
+	iret			; return from interrupt
+
+	
+	
+	
+	interrupt NonHandledInterrupt
+NonHandledInterrupt.l
+	iret
+
+	segment 'vectit'
+	dc.l {$82000000+main}									; reset
+	dc.l {$82000000+NonHandledInterrupt}	; trap
+	dc.l {$82000000+NonHandledInterrupt}	; irq0
+	dc.l {$82000000+NonHandledInterrupt}	; irq1
+	dc.l {$82000000+NonHandledInterrupt}	; irq2
+	dc.l {$82000000+NonHandledInterrupt}	; irq3
+	dc.l {$82000000+NonHandledInterrupt}	; irq4
+	dc.l {$82000000+NonHandledInterrupt}	; irq5
+	dc.l {$82000000+NonHandledInterrupt}	; irq6
+	dc.l {$82000000+NonHandledInterrupt}	; irq7
+	dc.l {$82000000+NonHandledInterrupt}	; irq8
+	dc.l {$82000000+NonHandledInterrupt}	; irq9
+	dc.l {$82000000+NonHandledInterrupt}	; irq10
+	dc.l {$82000000+NonHandledInterrupt}	; irq11
+	dc.l {$82000000+NonHandledInterrupt}	; irq12
+	dc.l {$82000000+NonHandledInterrupt}	; irq13
+	dc.l {$82000000+NonHandledInterrupt}	; irq14
+	dc.l {$82000000+NonHandledInterrupt}	; irq15
+	dc.l {$82000000+NonHandledInterrupt}	; irq16
+	dc.l {$82000000+NonHandledInterrupt}	; irq17
+	dc.l {$82000000+NonHandledInterrupt}	; irq18
+	dc.l {$82000000+NonHandledInterrupt}	; irq19
+	dc.l {$82000000+NonHandledInterrupt}	; irq20
+	dc.l {$82000000+NonHandledInterrupt}	; irq21
+	dc.l {$82000000+NonHandledInterrupt}	; irq22
+	dc.l {$82000000+timer4_ISR}	; irq23
+	dc.l {$82000000+NonHandledInterrupt}	; irq24
+	dc.l {$82000000+NonHandledInterrupt}	; irq25
+	dc.l {$82000000+NonHandledInterrupt}	; irq26
+	dc.l {$82000000+NonHandledInterrupt}	; irq27
+	dc.l {$82000000+NonHandledInterrupt}	; irq28
+	dc.l {$82000000+NonHandledInterrupt}	; irq29
+
+	end

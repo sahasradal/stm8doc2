@@ -1,0 +1,412 @@
+stm8
+multiplication_16x8:
+
+	ldw X,#65535
+	ldw buffer1,X
+	ld a,#255
+	mul x,a
+	ldw buffer5,X
+	ldw X,buffer1
+	SRLW X
+	SRLW X
+	SRLW X
+	SRLW X
+	SRLW X
+	SRLW X
+	SRLW X
+	SRLW X
+	mul x,a
+	ldw buffer3,x
+	ld a,xl
+	add a,buffer5
+	ld buffer5,a
+	ld a,buffer3
+	adc a,#0
+	ld buffer4,a		; answer in MSB buffer4,buffer5,buffer6 LSB max 24 byte 16bit x 8bit multiplication
+
+
+
+32 bit addition
+numbers in buffer1 to buffer 8
+result in captureH,captureL,captureHS,captureLS
+
+
+	ldw X,#$1234
+	ldw buffer1,x
+	ldw X,#$5678
+	ldw buffer3,X
+	ldw X,#$1234
+	ldw buffer5,x
+	ldw X,#$5678
+	ldw buffer7,X
+	ld a,buffer8
+	add a,buffer4
+	ld captureLS,a		; result LSB1
+	ld a,buffer7
+	adc a,buffer3
+	ld captureHS,a		: result LSB2
+	ld a,buffer6
+	adc a,buffer2
+	ld captureL,a		; result LSB3
+	ld a,buffer5
+	adc a,buffer1
+	ld captureH,a		; result MSB
+
+
+32 bit subtraction
+subtraction done byte by byte, need to add steps for negative result if carry set at last step
+A32bit_subtraction:	
+	ldw X,#$8765
+	ldw buffer1,x
+	ldw X,#$4321
+	ldw buffer3,X
+	ldw X,#$2222
+	ldw buffer5,x
+	ldw X,#$2222
+	ldw buffer7,X
+	ld a,buffer8
+	sub a,buffer4
+	ld captureLS,a
+	ld a,buffer7
+	sbc a,buffer3
+	ld captureHS,a
+	ld a,buffer6
+	sbc a,buffer2
+	ld captureL,a
+	ld a,buffer5
+	sbc a,buffer1
+	ld captureH,a
+	JRULT load_signbit_register
+	ret
+load_signbit_register
+	mov signbit,#1
+	ret
+
+
+
+
+Binary to ascii converter
+ascii values lie in buffers,buffers+1,buffers+2,buffers+3,buffers+4,buffers+5,buffers+6,buffers+7
+variales lie in this order in memory
+	segment byte at 100 'ram1'
+buffer1 ds.b
+buffer2 ds.b
+buffer3 ds.b
+buffer4 ds.b
+buffer5 ds.b
+buffer6 ds.b
+buffer7 ds.b
+buffer8 ds.b
+buffer9 ds.b
+buffer10 ds.b
+buffer11 ds.b
+buffer12 ds.b
+captureH ds.b
+captureL ds.b	
+captureHS ds.b
+captureLS ds.b
+capture_state ds.b	
+nibble1  ds.b
+data	 ds.b
+address  ds.b
+signbit  ds.b
+temp1    ds.b
+result4  ds.b
+result3  ds.b
+result2  ds.b
+result1  ds.b
+buffers  ds.b 23
+	
+bin_to_ascii:
+	ldw x,#$1234
+	ldw buffer5,X
+	ldw x,#$0056
+	ldw buffer3,x
+	ldw x,buffer5
+	ldw data,x
+	ld a,buffer4
+	ld nibble1,a
+	clr buffer1
+	clr buffer2
+	clr buffer3
+	clr buffer4
+	clr buffer5
+	clr buffer6
+	clr buffer7
+	clr buffer8
+	clr result4
+	clr result3
+	clr result2
+	clr result1
+onecrore:
+	ldw x,#$9680
+	ldw buffer3,x
+	ldw x,#$0098
+	ldw buffer1,x
+	mov buffer6,nibble1
+	ldw x,data
+	ldw buffer7,x
+	call A32bit_subtraction
+	inc temp1
+	ld a,signbit
+	jreq onecrore
+	dec temp1
+	
+	ld a,result1
+	add a,buffer4
+	ld result1,a		; result LSB1
+	ld a,result2
+	adc a,buffer3
+	ld result2,a		; result LSB2
+	ld a,result3
+	adc a,buffer2
+	ld result3,a		; result LSB3
+	ld a,result4
+	adc a,buffer1
+	ld result4,a		; result MSB
+	ld a,#$30			; ascii 0
+	add a,temp1
+	ld buffers ,a
+	clr temp1
+tenlakh:
+	ldw x,#$4240
+	ldw buffer3,x
+	ldw x,#$000f
+	ldw buffer1,x
+	mov buffer6,nibble1
+	ldw x,data
+	ldw buffer7,x
+	call A32bit_subtraction1
+	inc temp1
+	ld a,signbit
+	jreq tenlakh
+	dec temp1
+	
+	ld a,result1
+	add a,buffer4
+	ld result1,a		; result LSB1
+	ld a,result2
+	adc a,buffer3
+	ld result2,a		; result LSB2
+	ld a,result3
+	adc a,buffer2
+	ld result3,a		; result LSB3
+	ld a,result4
+	adc a,buffer1
+	ld result4,a		; result MSB
+	ld a,#$30			; ascii 0
+	add a,temp1
+	ld {buffers + 1} ,a	
+	clr temp1
+onelakh:
+	ldw x,#$86A0
+	ldw buffer3,x
+	ldw x,#$0001
+	ldw buffer1,x
+	mov buffer6,nibble1
+	ldw x,data
+	ldw buffer7,x
+	call A32bit_subtraction1
+	inc temp1
+	ld a,signbit
+	jreq onelakh
+	dec temp1
+	
+	ld a,result1
+	add a,buffer4
+	ld result1,a		; result LSB1
+	ld a,result2
+	adc a,buffer3
+	ld result2,a		; result LSB2
+	ld a,result3
+	adc a,buffer2
+	ld result3,a		; result LSB3
+	ld a,result4
+	adc a,buffer1
+	ld result4,a		; result MSB
+	ld a,#$30			; ascii 0
+	add a,temp1
+	ld {buffers + 2} ,a
+	clr temp1
+tenthousand:
+	ldw x,#$2710
+	ldw buffer3,x
+	ldw x,#$0000
+	ldw buffer1,x
+	mov buffer6,nibble1
+	ldw x,data
+	ldw buffer7,x
+	call A32bit_subtraction1
+	inc temp1
+	ld a,signbit
+	jreq tenthousand
+	dec temp1
+	
+	ld a,result1
+	add a,buffer4
+	ld result1,a		; result LSB1
+	ld a,result2
+	adc a,buffer3
+	ld result2,a		; result LSB2
+	ld a,result3
+	adc a,buffer2
+	ld result3,a		; result LSB3
+	ld a,result4
+	adc a,buffer1
+	ld result4,a		; result MSB
+	ld a,#$30			; ascii 0
+	add a,temp1
+	ld {buffers + 3} ,a
+	clr temp1
+thousand:
+	ldw x,#$3e8
+	ldw buffer3,x
+	ldw x,#$0000
+	ldw buffer1,x
+	mov buffer6,nibble1
+	ldw x,data
+	ldw buffer7,x
+	call A32bit_subtraction1
+	inc temp1
+	ld a,signbit
+	jreq thousand
+	dec temp1
+	
+	ld a,result1
+	add a,buffer4
+	ld result1,a		; result LSB1
+	ld a,result2
+	adc a,buffer3
+	ld result2,a		; result LSB2
+	ld a,result3
+	adc a,buffer2
+	ld result3,a		; result LSB3
+	ld a,result4
+	adc a,buffer1
+	ld result4,a		; result MSB
+	ld a,#$30			; ascii 0
+	add a,temp1
+	ld {buffers + 4} ,a
+	clr temp1
+hundred:
+	ldw x,#$0064
+	ldw buffer3,x
+	ldw x,#$0000
+	ldw buffer1,x
+	mov buffer6,nibble1
+	ldw x,data
+	ldw buffer7,x
+	call A32bit_subtraction1
+	inc temp1
+	ld a,signbit
+	jreq hundred
+	dec temp1
+	
+	ld a,result1
+	add a,buffer4
+	ld result1,a		; result LSB1
+	ld a,result2
+	adc a,buffer3
+	ld result2,a		; result LSB2
+	ld a,result3
+	adc a,buffer2
+	ld result3,a		; result LSB3
+	ld a,result4
+	adc a,buffer1
+	ld result4,a		; result MSB
+	ld a,#$30			; ascii 0
+	add a,temp1
+	ld {buffers + 5} ,a
+	clr temp1
+ten:
+	ldw x,#$000A
+	ldw buffer3,x
+	ldw x,#$0000
+	ldw buffer1,x
+	mov buffer6,nibble1
+	ldw x,data
+	ldw buffer7,x
+	call A32bit_subtraction1
+	inc temp1
+	ld a,signbit
+	jreq ten
+	dec temp1
+	
+	ld a,result1
+	add a,buffer4
+	ld result1,a		; result LSB1
+	ld a,result2
+	adc a,buffer3
+	ld result2,a		; result LSB2
+	ld a,result3
+	adc a,buffer2
+	ld result3,a		; result LSB3
+	ld a,result4
+	adc a,buffer1
+	ld result4,a		; result MSB
+	ld a,#$30			; ascii 0
+	add a,temp1
+	ld {buffers + 6} ,a
+	clr temp1				
+	ld a,#$30
+	add a,result1
+  ld {buffers + 7},a
+	
+	jp wait
+	
+	
+	
+A32bit_subtraction:	
+	ld a,buffer8
+	sub a,buffer4
+	ld result1,a
+	ld a,buffer7
+	sbc a,buffer3
+	ld result2,a
+	ld a,buffer6
+	sbc a,buffer2
+	ld result3,a
+	ld a,buffer5
+	sbc a,buffer1
+	ld result4,a
+	JRULT load_signbit_register
+	clr signbit
+	ret
+load_signbit_register
+	mov signbit,#1
+	ret
+	
+	
+
+A32bit_subtraction1:	
+	ld a,result1
+	sub a,buffer4
+	ld result1,a
+	ld a,result2
+	sbc a,buffer3
+	ld result2,a
+	ld a,result3
+	sbc a,buffer2
+	ld result3,a
+	ld a,result4
+	sbc a,buffer1
+	ld result4,a
+	JRULT load_signbit_register1
+	clr signbit
+	ret
+load_signbit_register1
+	mov signbit,#1
+	ret
+
+
+
+
+
+
+
+
+
+
+
+
+

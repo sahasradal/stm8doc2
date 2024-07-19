@@ -1,0 +1,40 @@
+16000cy/16000000cy = 0.001 seconds
+2cy for subw,2cy for jrne for loop and 1cy for zero match
+that means ((loopcount)2+2)-1)= ((loopcount)*4)-1)+ cycles of calling ,ret etc.
+all the above should add up to 16000 cycles to get 1000ms or 0.001s.
+so we should choose a count value for 1ms which when added with all ops should
+result in 16000cycles.
+
+ldw Y,#1000 ;(ms as immediate) (2)
+call delayms ;(6)
+
+
+delay1ms
+	pushw x		;(2) push to stack the number of ms required
+	ldw x, #3980 	;(2) load x with count needed to produce 1 ms delay
+	
+loop
+	subw x,#1    	;(2) subtract 1 from 1ms count
+	jrne loop    	;(2)-1  3973 cycles on X = 0, loop till 3980 becomes 0
+	popw x		;(2)
+	ret	     	;(4)
+
+
+delayms			; entry from main program
+	call delay1ms 	;(6) call 1ms delay routine
+	decw x	;(1)	;(1) X here contains number of ms,1 subtracted each time	
+	jrne delayms	;(2)-1,loop till total number of ms required are called
+	ret		;(4), exit delay routine to main program
+
+
+(ms* 10cy)+ ret (4cy)+ call(6cy)
+(pushw + ldw + pop + ret)*ms + ((loopcount)*4)-1) + 
+
+inner loop value for 1 ms= ((((fcpu/1000)/4)-((10*ms)+(10*ms)+10)/4)-1
+
+{{{{fclk / 1000} / 4} - {{{10 * ms} * 2} + 10}} / 4} - 1 
+
+{{4000 - {{{20 * first} + 10} / 4}} - 1}
+
+the delayms consumes 20cycles per ms called so we deduct 4000-20=3980 for inner count.
+we ignore the 10 cycles to call delay and ret
